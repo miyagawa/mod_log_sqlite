@@ -1,9 +1,14 @@
 2002-04-07  Tatsuhiko Miyagawa  <miyagawa@bulknews.net>
 
-	* 0.02
-	Added sqlite_busy_timeout() to avoid lock error
+	- 0.03 release
+	* uses RSRC_CONF
 
 2002-04-07  Tatsuhiko Miyagawa  <miyagawa@bulknews.net>
 
-	* first release
+	- 0.02 release
+	* Added sqlite_busy_timeout() to avoid lock error
+
+2002-04-07  Tatsuhiko Miyagawa  <miyagawa@bulknews.net>
+
+	- 0.01 release
 

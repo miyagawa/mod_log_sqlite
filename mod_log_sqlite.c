@@ -14,7 +14,7 @@
 #include "ap_config.h"
 #include "sqlite.h"
 
-#define LOG_SQLITE_VERSION 0.02
+#define LOG_SQLITE_VERSION 0.03
 #define SQL_TIMEOUT 30000
 
 typedef struct {
@@ -156,8 +156,8 @@ static void cleanup_log_sqlite(server_rec *s, pool *p)
 
 /* setup commands */
 static const command_rec log_sqlite_cmds[] = {
-  {"LogSQLiteDBFile", set_sqlite_db_file, NULL, OR_ALL, TAKE1, "sqlite log database file name"},
-  {"LogSQLiteTable", set_sqlite_table, NULL, OR_ALL, TAKE1, "sqlite log table name"},
+  {"LogSQLiteDBFile", set_sqlite_db_file, NULL, RSRC_CONF, TAKE1, "sqlite log database file name"},
+  {"LogSQLiteTable", set_sqlite_table, NULL, RSRC_CONF, TAKE1, "sqlite log table name"},
 };
 
 /* Dispatch list for API hooks */
