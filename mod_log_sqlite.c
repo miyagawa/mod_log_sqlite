@@ -15,7 +15,37 @@
 #include "ap_config.h"
 #include "sqlite.h"
 
-#define LOG_SQLITE_VERSION 0.06
+#ifdef STANDARD20_MODULE_STUFF /* Apache 2.x compatible */
+#define APACHE2
+#include "ap_compat.h"
+#include "apr_pools.h"
+#include "apr_strings.h"
+#include "apr_tables.h"
+#include "unixd.h"
+
+typedef apr_pool_t pool;
+typedef apr_array_header_t array_header;
+typedef apr_table_t table;
+typedef apr_table_entry_t table_entry;
+#endif
+
+#ifdef APACHE2
+#define LOG_ERROR_ERR(s, args...) \
+ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, 0, s, args)
+#define LOG_ERROR_INFO(s, args...) \
+ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, 0, s, args)
+#define LOG_RERROR_INFO(r, args...) \
+ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, 0, r, args)
+#else
+#define LOG_ERROR_ERR(s, args...) \
+ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_ERR, s, args)
+#define LOG_ERROR_INFO(s, args...) \
+ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, s, args)
+#define LOG_RERROR_INFO(r, args...) \
+ap_log_rerror(APLOG_MARK, APLOG_NOERRNO|APLOG_INFO, r, args)
+#endif
+
+#define LOG_SQLITE_VERSION 0.07
 #define SQL_TIMEOUT 30000
 
 #define WATCHPOINT printf("WATCHPOINT %s %d\n", __FILE__, __LINE__)
@@ -111,26 +141,32 @@ static void log_sqlite_open(server_rec *s, pool *p)
     char *sqliteErr;
     int ret;
     char *log_dir;
+#ifdef APACHE2
+    uid_t s_uid = unixd_config.user_id;
+    gid_t s_gid = unixd_config.group_id;
+#else
+    uid_t s_uid = s->server_uid;
+    gid_t s_gid = s->server_gid;
+#endif
     if (!conf->db_file) {
 	return;
     }
     db_path  = ap_server_root_relative(p, conf->db_file);
-    /* DEBUG */
-    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_DEBUG, s, 
-		 "%s: db file %s", s->server_hostname, db_path);
+
     if (conf->auto_chown){
 	log_dir = ap_make_dirstr_parent(p, db_path);
-	ret = chown(log_dir, s->server_uid, s->server_gid);
+	ret = chown(log_dir, s_uid, s_gid);
 	if (ret != 0)
-	    ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, s, "sqlite chown failed: %s", log_dir);
-	ret = chown(db_path, s->server_uid, s->server_gid); 
+	    LOG_ERROR_ERR(s,"sqlite chown failed: %s", log_dir);
+	ret = chown(db_path, s_uid, s_gid); 
 	if (ret != 0)
-	    ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, s, "sqlite chown failed: %s", db_path);
+	    LOG_ERROR_ERR(s, "sqlite chown failed: %s", db_path);
     }
 
     conf->db = sqlite_open(db_path, 0600, &sqliteErr);
+    LOG_ERROR_INFO(s, "sqlite open for %s", s->server_hostname);
     if ((conf->db == 0) && sqliteErr) {
-	ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_NOERRNO, s, "sqlite open error: %s", sqliteErr);
+	LOG_ERROR_ERR(s, "sqlite open error: %s", sqliteErr);
 	free(sqliteErr);
     }
     else {
@@ -141,7 +177,7 @@ static void log_sqlite_open(server_rec *s, pool *p)
 	    conf->table
 	    );
 	if (ret != SQLITE_OK){
-	    ap_log_error(APLOG_MARK, APLOG_INFO|APLOG_NOERRNO, s, "sqlite exec error: %s", sqliteErr);
+	    LOG_ERROR_INFO(s, "sqlite exec error: %s", sqliteErr);
 	    free(sqliteErr);
 	}
     }
@@ -149,13 +185,21 @@ static void log_sqlite_open(server_rec *s, pool *p)
 }
 
 /* open logdb file */
+#ifdef APACHE2
+static int init_log_sqlite(pool *pc, pool *p, pool *pt, server_rec *s)
+#else
 static void init_log_sqlite(server_rec* s, pool *p)
+#endif
 {
     log_sqlite_open(s, p);
     for (s = s->next; s; s = s->next){
 	log_sqlite_open(s, p);
     }
+#ifdef APACHE2
+    return OK;
+#else
     return;
+#endif
 }
 
 /* log_sqlite handler */
@@ -164,6 +208,15 @@ static int log_sqlite_handler(request_rec *r)
   log_sqlite_config_rec *conf = (log_sqlite_config_rec *) ap_get_module_config(r->server->module_config, &log_sqlite_module);
   char *sqliteErr;
   int  ret;
+#ifdef APACHE2
+  char *user = ap_pstrdup(r->pool, r->user);
+  time_t time_stamp = atoi(ap_ht_time(r->pool, r->request_time, "%s", 0));
+  char *remote_host = ap_pstrdup(r->pool, ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME, NULL));
+#else
+  char *user = ap_pstrdup(r->pool, r->connection->user);
+  time_t time_stamp = r->request_time;
+  char *remote_host = ap_pstrdup(r->pool, ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME));
+#endif
 
   if (conf->db == 0) {
     return DECLINED;
@@ -171,7 +224,7 @@ static int log_sqlite_handler(request_rec *r)
 
   /* sets timeout handler */
   sqlite_busy_timeout(conf->db, SQL_TIMEOUT);
-  
+
   /* using '%q' would lead to '(NULL)', thus I use my own quote() function */
   ret = sqlite_exec_printf(
     conf->db,
@@ -180,11 +233,11 @@ static int log_sqlite_handler(request_rec *r)
     VALUES (%s,%s,%s,%s,%i,%i,%i,%s,%s,%s,%s)",
     NULL, NULL, &sqliteErr,
     conf->table,
-    quote(r, ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_NAME)),
-    quote(r, r->connection->user),
+    quote(r, remote_host),
+    quote(r, user),
     quote(r, r->uri),
     quote(r, r->hostname),
-    r->request_time,
+    time_stamp,
     r->status,
     r->bytes_sent,
     quote(r, ap_table_get(r->headers_in, "Referer")),
@@ -195,8 +248,8 @@ static int log_sqlite_handler(request_rec *r)
   
 
   if (ret != SQLITE_OK) {
-    ap_log_rerror(APLOG_MARK, APLOG_INFO|APLOG_NOERRNO, r, "sqlite exec error: %s", sqliteErr);
-    free(sqliteErr);
+      LOG_RERROR_INFO(r, "sqlite exec error: %s", sqliteErr);
+      free(sqliteErr);
   }
 
   return OK;
@@ -205,32 +258,71 @@ static int log_sqlite_handler(request_rec *r)
 static void log_sqlite_close(server_rec *s, pool *p)
 {
     log_sqlite_config_rec *conf = (log_sqlite_config_rec *) ap_get_module_config(s->module_config, &log_sqlite_module);
+    LOG_ERROR_INFO(s, "close db for %s", s->server_hostname);
     if (conf->db != 0)
 	sqlite_close(conf->db);
     return;
 }
 
 /* close logdb on child exit */
+#ifdef APACHE2
+static apr_status_t cleanup_log_sqlite(void *data)
+#else
 static void cleanup_log_sqlite(server_rec *s, pool *p)
+#endif
 {
+#ifdef APACHE2
+    server_rec *s = (server_rec *)data;
+    pool *p = s->process->pool;
+#endif
     log_sqlite_close(s, p);
     for (s = s->next; s; s = s->next){
 	log_sqlite_close(s, p);
     }
+#ifdef APACHE2
+    return APR_SUCCESS;
+#else
     return;
+#endif
 }
 
 /* setup commands */
 static const command_rec log_sqlite_cmds[] = {
-  {"LogSQLiteDBFile", set_sqlite_db_file, 
+  {"LogSQLiteDBFile", (void *)set_sqlite_db_file, 
    NULL, RSRC_CONF, TAKE1, "sqlite log database file name"},
-  {"LogSQLiteTable", set_sqlite_table, 
+  {"LogSQLiteTable", (void *)set_sqlite_table, 
    NULL, RSRC_CONF, TAKE1, "sqlite log table name"},
-  {"LogSQLiteAutoChown", set_sqlite_auto_chown, 
+  {"LogSQLiteAutoChown", (void *)set_sqlite_auto_chown, 
    NULL, RSRC_CONF, FLAG, "sqlite log file auto chown"},
   {NULL},
 };
 
+#ifdef APACHE2
+
+static void log_sqlite_init_child(pool *p, server_rec *s)
+{
+    apr_pool_cleanup_register(p, s, cleanup_log_sqlite, cleanup_log_sqlite);
+}
+
+static void log_sqlite_register_hooks(pool *p)
+{
+    ap_hook_open_logs(init_log_sqlite, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_log_transaction(log_sqlite_handler, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_child_init(log_sqlite_init_child, NULL, NULL, APR_HOOK_MIDDLE);
+}
+
+module AP_MODULE_DECLARE_DATA log_sqlite_module =
+{
+    STANDARD20_MODULE_STUFF,
+    NULL,     /* dir config creater */
+    NULL,      /* dir merger --- default is to override */
+    create_log_sqlite_config,  /* create per-server config structure */
+    NULL,                       /* merge server config */
+    log_sqlite_cmds,                  /* command apr_table_t */
+    log_sqlite_register_hooks         /* register hooks */
+};
+
+#else
 /* Dispatch list for API hooks */
 module MODULE_VAR_EXPORT log_sqlite_module = {
     STANDARD_MODULE_STUFF, 
@@ -253,4 +345,4 @@ module MODULE_VAR_EXPORT log_sqlite_module = {
     cleanup_log_sqlite,    /* child_exit                          */
     NULL                   /* [#0] post read-request              */
 };
-
+#endif

@@ -1,16 +1,20 @@
-2002-04-19  Tatsuhiko Miyagawa  <miyagawa@bulknews.net>
+2002-04-23  IKEBE Tomohiro <ikechin@0xfa.com>
+
+	* mod_log_sqlite.c:
+	  now this module works on Apache 2.x
+
+2002-04-19
 
 	* mod_log_sqlite.c:
 	  close log database files properly
 	  LogSQLiteAutoChown takes On|Off only
 
-2002-04-15  Tatsuhiko Miyagawa  <miyagawa@bulknews.net>
+2002-04-15  IKEBE Tomohiro <ikechin@0xfa.com>
 
 	* mod_log_sqlite.c:
 	  VirtualHost support
 	  added LogSQLiteAutoChown directive
 	  creates table on demand
-	  (Thanks to IKEBE Tomohiro)
 	
 2002-04-08  Tatsuhiko Miyagawa  <miyagawa@bulknews.net>
 
