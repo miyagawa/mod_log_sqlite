@@ -15,7 +15,7 @@
 #include "ap_config.h"
 #include "sqlite.h"
 
-#define LOG_SQLITE_VERSION 0.05
+#define LOG_SQLITE_VERSION 0.06
 #define SQL_TIMEOUT 30000
 
 #define WATCHPOINT printf("WATCHPOINT %s %d\n", __FILE__, __LINE__)
@@ -97,13 +97,10 @@ static const char *set_sqlite_table(cmd_parms *cmd, void *mconfig, char *param)
   return NULL;
 }
 
-static const char *set_sqlite_auto_chown(cmd_parms *cmd, void *mconfig, char *param)
+static const char *set_sqlite_auto_chown(cmd_parms *cmd, void *mconfig, int bool)
 {
   log_sqlite_config_rec *conf = (log_sqlite_config_rec *) ap_get_module_config(cmd->server->module_config, &log_sqlite_module);
-  if (strncasecmp(param, "On", 2) == 0)
-      conf->auto_chown = 1;
-  else
-      conf->auto_chown = 0;
+  conf->auto_chown = bool;
   return NULL;
 }
 
@@ -205,12 +202,22 @@ static int log_sqlite_handler(request_rec *r)
   return OK;
 }
 
+static void log_sqlite_close(server_rec *s, pool *p)
+{
+    log_sqlite_config_rec *conf = (log_sqlite_config_rec *) ap_get_module_config(s->module_config, &log_sqlite_module);
+    if (conf->db != 0)
+	sqlite_close(conf->db);
+    return;
+}
 
 /* close logdb on child exit */
 static void cleanup_log_sqlite(server_rec *s, pool *p)
 {
-  log_sqlite_config_rec *conf = (log_sqlite_config_rec *) ap_get_module_config(s->module_config, &log_sqlite_module);
-  sqlite_close(conf->db);
+    log_sqlite_close(s, p);
+    for (s = s->next; s; s = s->next){
+	log_sqlite_close(s, p);
+    }
+    return;
 }
 
 /* setup commands */
@@ -220,7 +227,7 @@ static const command_rec log_sqlite_cmds[] = {
   {"LogSQLiteTable", set_sqlite_table, 
    NULL, RSRC_CONF, TAKE1, "sqlite log table name"},
   {"LogSQLiteAutoChown", set_sqlite_auto_chown, 
-   NULL, RSRC_CONF, TAKE1, "sqlite log file auto chown"},
+   NULL, RSRC_CONF, FLAG, "sqlite log file auto chown"},
   {NULL},
 };
 
