@@ -1,0 +1,43 @@
+mod_log_sqlite - Apache logging module to sqlite
+
+INSTALL:
+
+You can install this module easily via apxs magic.
+
+  % make
+  # make install
+  % make clean
+
+CONFIGURATION (sample):
+
+First you should install sqlite module manually. See
+http://www.hwaci.com/sw/sqlite/ for details.
+
+Then you should initialize access_log database. Note that the database
+file and the directory can be writable by httpd running user (nobody
+by default).
+
+  # mkdir /usr/local/apache/sqlite-logs
+  # chown nobody:nobody /usr/local/apache/sqlite-logs
+  % sudo -u nobody sqlite /usr/local/apache/sqlite-logs/sqlite_log < create_table.sql
+
+"create_table.sql" is bundled with this module.
+
+Finally, simply add the following line to your httpd.conf:
+
+  LogSQLiteDBFile sqlite-logs/sqlite_log
+
+Table name is "access_log" by default. You can change it via
+"LogSQLiteTable" directive if you want to.
+
+  LogSQLiteTable wwwlog
+
+
+That's all! Enjoy querying your access_log via VIEWs and/or sub-querys.
+
+--
+Tatsuhiko Miyagawa <miyagawa@bulknews.net>
+
+
+
+
