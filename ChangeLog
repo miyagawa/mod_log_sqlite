@@ -1,27 +1,34 @@
+2002-04-19  Tatsuhiko Miyagawa  <miyagawa@bulknews.net>
+
+	* mod_log_sqlite.c:
+	  close log database files properly
+	  LogSQLiteAutoChown takes On|Off only
+
 2002-04-15  Tatsuhiko Miyagawa  <miyagawa@bulknews.net>
 
-	- 0.05 release
-	* VirtualHost support
-	* LogSQLiteAutoChown directive
-	* creates table on demand
+	* mod_log_sqlite.c:
+	  VirtualHost support
+	  added LogSQLiteAutoChown directive
+	  creates table on demand
 	  (Thanks to IKEBE Tomohiro)
 	
 2002-04-08  Tatsuhiko Miyagawa  <miyagawa@bulknews.net>
 
-	- 0.04 release
-	* Added NULL entry to command_rec
+	* mod_log_sqlite.c:
+	  Added NULL entry to command_rec
 
 2002-04-07  Tatsuhiko Miyagawa  <miyagawa@bulknews.net>
 
-	- 0.03 release
-	* uses RSRC_CONF
+	* mod_log_sqlite.c:
+	  uses RSRC_CONF
 
 2002-04-07  Tatsuhiko Miyagawa  <miyagawa@bulknews.net>
 
-	- 0.02 release
-	* Added sqlite_busy_timeout() to avoid lock error
+	* mod_log_sqlite.c:
+	  Added sqlite_busy_timeout() to avoid lock error
 
 2002-04-07  Tatsuhiko Miyagawa  <miyagawa@bulknews.net>
 
-	- 0.01 release
+	* mod_log_sqlite.c:
+	  initial release
 

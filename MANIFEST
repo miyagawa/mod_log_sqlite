@@ -1,4 +1,5 @@
 ChangeLog
+Makefile
 README
 create_table.sql
 mod_log_sqlite.c
