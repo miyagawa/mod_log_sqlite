@@ -6,7 +6,7 @@
 #   the used tools
 APXS=apxs
 APACHECTL=apachectl
-VER=0.01
+VER=0.02
 
 #   additional user defines, includes and libraries
 #DEF=-Dmy_define=my_value

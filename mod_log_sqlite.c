@@ -14,8 +14,18 @@
 #include "ap_config.h"
 #include "sqlite.h"
 
-#define LOG_SQLITE_VERSION 0.01
+#define LOG_SQLITE_VERSION 0.02
+#define SQL_TIMEOUT 30000
 
+typedef struct {
+  char   *db_file;
+  char   *table;
+  sqlite *db;
+} log_sqlite_config_rec;
+
+module MODULE_VAR_EXPORT log_sqlite_module;
+
+/* utility: NULL to "NULL", others escaped and quoted */
 static char *quote(request_rec *r, const char *str)
 {
   char *new;
@@ -40,15 +50,6 @@ static char *quote(request_rec *r, const char *str)
   new[i+2] = 0;
   return new;
 }
-
-
-typedef struct {
-  char *db_file;
-  char *table;
-  sqlite *db;
-} log_sqlite_config_rec;
-
-module MODULE_VAR_EXPORT log_sqlite_module;
 
 /* create config */
 static void *create_log_sqlite_config(pool *p, server_rec *s)
@@ -78,7 +79,7 @@ static const char *set_sqlite_table(cmd_parms *cmd, void *mconfig, char *param)
   return NULL;
 }
 
-/* open log db file */
+/* open logdb file */
 static void init_log_sqlite(server_rec* s, pool *p)
 {
   log_sqlite_config_rec *conf = (log_sqlite_config_rec *) ap_get_module_config(s->module_config, &log_sqlite_module);
@@ -111,7 +112,11 @@ static int log_sqlite_handler(request_rec *r)
   if (conf->db == 0) {
     return DECLINED;
   }
+
+  /* sets timeout handler */
+  sqlite_busy_timeout(conf->db, SQL_TIMEOUT);
   
+  /* using '%q' would lead to '(NULL)', thus I use my own quote() function */
   ret = sqlite_exec_printf(
     conf->db,
     "INSERT INTO %s
@@ -142,7 +147,7 @@ static int log_sqlite_handler(request_rec *r)
 }
 
 
-/* close database on child exit */
+/* close logdb on child exit */
 static void cleanup_log_sqlite(server_rec *s, pool *p)
 {
   log_sqlite_config_rec *conf = (log_sqlite_config_rec *) ap_get_module_config(s->module_config, &log_sqlite_module);

@@ -1,0 +1,9 @@
+2002-04-07  Tatsuhiko Miyagawa  <miyagawa@bulknews.net>
+
+	* 0.02
+	Added sqlite_busy_timeout() to avoid lock error
+
+2002-04-07  Tatsuhiko Miyagawa  <miyagawa@bulknews.net>
+
+	* first release
+
